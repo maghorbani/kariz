@@ -1,5 +1,11 @@
 # KARIZ Command Dashboard
 
+[![CI](https://github.com/YOUR_USERNAME/kariz/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/kariz/actions/workflows/ci.yml)
+[![Release](https://github.com/YOUR_USERNAME/kariz/actions/workflows/release.yml/badge.svg)](https://github.com/YOUR_USERNAME/kariz/actions/workflows/release.yml)
+[![Docker Image](https://img.shields.io/docker/v/YOUR_USERNAME/kariz?sort=semver&label=Docker%20Hub)](https://hub.docker.com/r/YOUR_USERNAME/kariz)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/YOUR_USERNAME/kariz)](https://goreportcard.com/report/github.com/YOUR_USERNAME/kariz)
+
 KARIZ is a self-service command execution platform that provides a web-based dashboard for QA, Data, and Operations teams to run pre-approved production commands on sibling Docker containers. It follows a **Docker-out-of-Docker** pattern — communicating with the host Docker daemon through a mounted socket to create, execute, and clean up ephemeral containers.
 
 ## Key Features
@@ -60,11 +66,21 @@ docker compose down -v    # Stop containers and remove volumes
 
 ## Docker Run
 
-To run KARIZ as a standalone container (with an external PostgreSQL instance):
+Pull from Docker Hub:
 
 ```bash
-docker build -t kariz .
+docker pull YOUR_USERNAME/kariz:latest
+```
 
+Or from GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/YOUR_USERNAME/kariz:latest
+```
+
+Run with an external PostgreSQL instance:
+
+```bash
 docker run -d \
   --name kariz \
   -p 8080:8080 \
@@ -73,7 +89,7 @@ docker run -d \
   -e APP_URL=http://localhost:8080 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v kariz_artifacts:/data/artifacts \
-  kariz
+  YOUR_USERNAME/kariz:latest
 ```
 
 The Docker socket mount (`-v /var/run/docker.sock:/var/run/docker.sock`) is required for KARIZ to manage sibling containers on the host.
