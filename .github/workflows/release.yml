@@ -24,7 +24,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            maghorbani/kariz
+            maghorbani759/kariz
             ghcr.io/${{ github.repository }}
           tags: |
             type=semver,pattern={{version}}
