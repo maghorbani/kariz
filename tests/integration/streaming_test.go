@@ -195,21 +195,16 @@ func TestSSEStreamingReplay(t *testing.T) {
 
 	// Subscribe with Last-Event-ID = "1" to skip the first event.
 	eventCh, unsub := streamMgr.Subscribe(executionID, "1")
-
-	// Collect replayed events.
-	var replayed []models.SSEEvent
-	go func() {
-		for evt := range eventCh {
-			replayed = append(replayed, evt)
-		}
-	}()
+	defer unsub()
 
 	// Complete the execution to close the channel.
 	streamMgr.Complete(executionID, models.StatusCompleted)
 
-	// Wait briefly for events to be collected.
-	time.Sleep(200 * time.Millisecond)
-	unsub()
+	// Collect all replayed events (channel closes after Complete).
+	var replayed []models.SSEEvent
+	for evt := range eventCh {
+		replayed = append(replayed, evt)
+	}
 
 	// Should have received events 2, 3, and the complete event (skipping event 1).
 	if len(replayed) < 2 {

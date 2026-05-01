@@ -150,6 +150,9 @@ func (s *executorService) ExecuteCommand(ctx context.Context, commandEntry model
 		return nil, fmt.Errorf("create execution record: %w", err)
 	}
 
+	// Return a copy so the caller doesn't race with the background goroutine.
+	recordCopy := *record
+
 	// 6. Launch goroutine for Docker lifecycle using a detached context
 	// so execution continues after the HTTP response is sent.
 	switch commandEntry.ExecutionMode {
@@ -159,7 +162,7 @@ func (s *executorService) ExecuteCommand(ctx context.Context, commandEntry model
 		go s.runCreateMode(commandEntry, record, cmdArgs)
 	}
 
-	return record, nil
+	return &recordCopy, nil
 }
 
 // checkConcurrencyLock verifies that concurrent execution is allowed for the command.

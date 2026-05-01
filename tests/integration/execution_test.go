@@ -32,14 +32,16 @@ func newInMemoryExecutionRepo() *inMemoryExecutionRepo {
 func (r *inMemoryExecutionRepo) Create(ctx context.Context, record *models.ExecutionRecord) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.records[record.ID] = record
+	cp := *record
+	r.records[record.ID] = &cp
 	return nil
 }
 
 func (r *inMemoryExecutionRepo) Update(ctx context.Context, record *models.ExecutionRecord) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.records[record.ID] = record
+	cp := *record
+	r.records[record.ID] = &cp
 	return nil
 }
 
@@ -50,7 +52,8 @@ func (r *inMemoryExecutionRepo) GetByID(ctx context.Context, id string) (*models
 	if !ok {
 		return nil, nil
 	}
-	return rec, nil
+	cp := *rec
+	return &cp, nil
 }
 
 func (r *inMemoryExecutionRepo) List(ctx context.Context, filter models.ExecutionFilter) (*models.PaginatedResult, error) {
@@ -66,7 +69,12 @@ func (r *inMemoryExecutionRepo) CountRunning(ctx context.Context, commandID stri
 func (r *inMemoryExecutionRepo) getRecord(id string) *models.ExecutionRecord {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.records[id]
+	rec, ok := r.records[id]
+	if !ok {
+		return nil
+	}
+	cp := *rec
+	return &cp
 }
 
 // --- Mock DockerManager ---

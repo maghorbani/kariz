@@ -414,17 +414,22 @@ func TestExecuteCommand_CreateMode_CompletesSuccessfully(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Wait for the goroutine to complete.
-	time.Sleep(500 * time.Millisecond)
+	// Poll for completion instead of sleeping to avoid race conditions.
+	var finalRecord *models.ExecutionRecord
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for execution to complete")
+		case <-time.After(50 * time.Millisecond):
+			finalRecord = repo.getRecord(record.ID)
+			if finalRecord != nil && finalRecord.Status == models.StatusCompleted {
+				goto done
+			}
+		}
+	}
+done:
 
-	// Check the final record state.
-	finalRecord := repo.getRecord(record.ID)
-	if finalRecord == nil {
-		t.Fatal("expected record to exist in repo")
-	}
-	if finalRecord.Status != models.StatusCompleted {
-		t.Errorf("expected status 'completed', got %q", finalRecord.Status)
-	}
 	if finalRecord.Stdout != "hello world\n" {
 		t.Errorf("expected stdout 'hello world\\n', got %q", finalRecord.Stdout)
 	}
