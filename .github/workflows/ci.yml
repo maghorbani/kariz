@@ -8,6 +8,7 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  SESSION_SECRET: ci-test-secret
 
 permissions:
   contents: read
@@ -59,24 +60,17 @@ jobs:
         run: go mod download
 
       - name: Run unit tests
-        run: go test -race -coverprofile=coverage.out -covermode=atomic ./internal/...
-        env:
-          SESSION_SECRET: ci-test-secret
+        run: go test -race -timeout 60s -coverprofile=coverage.out -covermode=atomic ./internal/...
 
       - name: Run property-based tests
-        run: go test -race -count=1 ./tests/property/...
-        env:
-          SESSION_SECRET: ci-test-secret
+        run: go test -race -timeout 120s -count=1 ./tests/property/...
 
       - name: Run smoke tests
-        run: go test -race ./tests/smoke/...
-        env:
-          SESSION_SECRET: ci-test-secret
+        run: go test -race -timeout 30s ./tests/smoke/...
 
       - name: Run integration tests
-        run: go test -race ./tests/integration/...
+        run: go test -race -timeout 60s ./tests/integration/...
         env:
-          SESSION_SECRET: ci-test-secret
           DATABASE_URL: postgres://kariz:kariz@localhost:5432/kariz_test?sslmode=disable
 
       - name: Upload coverage
@@ -106,7 +100,7 @@ jobs:
         run: pnpm install --frozen-lockfile
         working-directory: web
 
-      - name: Type check
+      - name: Build
         run: pnpm run build
         working-directory: web
 
