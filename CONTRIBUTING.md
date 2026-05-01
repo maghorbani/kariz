@@ -16,7 +16,7 @@ Thanks for your interest in contributing! Here's how to get started.
 
 ```bash
 # Clone the repo
-git clone https://github.com/YOUR_USERNAME/kariz.git
+git clone https://github.com/maghorbani/kariz.git
 cd kariz
 
 # Start PostgreSQL
