@@ -86,7 +86,7 @@ func (r *commandRepository) Create(ctx context.Context, entry *models.CommandEnt
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	volList := models.VolumeMountList(entry.Volumes)
 	artList := models.ArtifactDeclareList(entry.Artifacts)
@@ -191,7 +191,7 @@ func (r *commandRepository) Update(ctx context.Context, entry *models.CommandEnt
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	volList := models.VolumeMountList(entry.Volumes)
 	artList := models.ArtifactDeclareList(entry.Artifacts)

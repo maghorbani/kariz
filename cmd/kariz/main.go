@@ -78,7 +78,7 @@ func runServe() {
 		slog.Error("failed to connect to database", "error", err)
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Docker manager.
 	dockerMgr, err := docker.NewDockerManager(cfg.DockerSocketPath)
@@ -242,7 +242,7 @@ func runCreateSuperuser() {
 		fmt.Fprintf(os.Stderr, "Error connecting to database: %v\n", err)
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Parse flags: --username, --password, --email (or positional args).
 	username := "admin"
@@ -291,7 +291,7 @@ func createSuperuser(db *sqlx.DB, username, password, email string) error {
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	var userID string
 	err = tx.QueryRow(`

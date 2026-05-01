@@ -35,7 +35,7 @@ func (r *userRepository) Create(ctx context.Context, user *models.User, roles []
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO users (id, username, password_hash, email, is_active, created_at, updated_at)
@@ -110,7 +110,7 @@ func (r *userRepository) UpdateRoles(ctx context.Context, userID string, roles [
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	_, err = tx.ExecContext(ctx, `DELETE FROM user_roles WHERE user_id = $1`, userID)
 	if err != nil {

@@ -72,7 +72,7 @@ func (c *ArtifactCopier) copyOne(
 		c.recordFailed(ctx, executionID, decl.Label, fileName, now, fmt.Sprintf("copy from container failed: %v", err))
 		return
 	}
-	defer tarReader.Close()
+	defer func() { _ = tarReader.Close() }()
 
 	// Step 2: Extract the file from the tar stream.
 	fileReader, err := extractFileFromTar(tarReader)

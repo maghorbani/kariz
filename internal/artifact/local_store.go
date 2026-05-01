@@ -37,7 +37,7 @@ func (s *LocalArtifactStore) Store(ctx context.Context, executionID string, labe
 	if err != nil {
 		return nil, fmt.Errorf("create artifact file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	written, err := io.Copy(f, content)
 	if err != nil {
