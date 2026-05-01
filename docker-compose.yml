@@ -1,0 +1,65 @@
+# =============================================================================
+# KARIZ Command Dashboard — Local Development Compose
+# =============================================================================
+# Services:
+#   postgres  — PostgreSQL 16 database
+#   kariz     — KARIZ application (Go backend + React frontend)
+#
+# Usage:
+#   docker compose up --build        Start all services (rebuild app image)
+#   docker compose up -d             Start in detached mode
+#   docker compose down              Stop and remove containers
+#   docker compose down -v           Stop and remove containers + volumes
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL database
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kariz
+      POSTGRES_PASSWORD: kariz
+      POSTGRES_DB: kariz
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kariz -d kariz"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # KARIZ application
+  # ---------------------------------------------------------------------------
+  kariz:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgres://kariz:kariz@postgres:5432/kariz?sslmode=disable
+      DOCKER_SOCKET_PATH: /var/run/docker.sock
+      SESSION_SECRET: dev-secret-change-in-production
+      APP_PORT: "8080"
+      ARTIFACT_STORE_PATH: /data/artifacts
+      APP_URL: http://localhost:8080
+    volumes:
+      # Docker-out-of-Docker: mount host Docker socket into the KARIZ container
+      # so it can manage sibling containers on the host daemon.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Persistent artifact storage across container restarts.
+      - kariz_artifacts:/data/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+# ---------------------------------------------------------------------------
+# Named volumes
+# ---------------------------------------------------------------------------
+volumes:
+  postgres_data:
+  kariz_artifacts:

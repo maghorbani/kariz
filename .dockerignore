@@ -1,0 +1,39 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+
+# Kiro specs (not needed in image)
+.kiro
+
+# Frontend dev dependencies (rebuilt in Docker)
+web/node_modules
+web/dist
+web/.vite
+
+# Go test/build artifacts
+*.test
+*.out
+coverage.out
+vendor
+
+# Docker
+docker-compose.yml
+docker-compose.override.yml
+Dockerfile
+.dockerignore
+
+# Docs
+README.md
+LICENSE
+
+# Data
+data/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,40 @@
+# Go
+/kariz
+*.exe
+*.test
+*.out
+*.prof
+vendor/
+
+# Frontend
+web/node_modules/
+web/dist/
+web/.vite/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Data / artifacts
+/data/
+*.sql.dump
+
+# Docker
+docker-compose.override.yml
+
+# Test
+coverage.out
+coverage.html
+
+# OS
+.DS_Store
