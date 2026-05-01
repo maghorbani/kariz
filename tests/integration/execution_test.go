@@ -350,7 +350,7 @@ func TestFullCommandExecutionLifecycle_FailedExecution(t *testing.T) {
 		},
 	}
 
-	execSvc := executor.NewExecutorService(repo, dockerMgr, paramVal, streamMgr, nil)
+	execSvc := executor.NewExecutorService(repo, dockerMgr, paramVal, streamMgr, nil, nil)
 
 	cmd := models.CommandEntry{
 		ID:              "cmd-fail-1",
