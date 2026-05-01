@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/kariz/kariz/internal/models"
@@ -125,14 +124,14 @@ func (dm *dockerManager) RemoveContainer(ctx context.Context, containerID string
 func (dm *dockerManager) IsAvailable(ctx context.Context) error {
 	_, err := dm.cli.Ping(ctx)
 	if err != nil {
-		return fmt.Errorf("Docker daemon is unreachable: %w", err)
+		return fmt.Errorf("docker daemon is unreachable: %w", err)
 	}
 	return nil
 }
 
 // ExecInContainer creates an exec instance in a running container and returns the exec ID.
 func (dm *dockerManager) ExecInContainer(ctx context.Context, containerID string, command []string) (string, error) {
-	execConfig := types.ExecConfig{
+	execConfig := container.ExecOptions{
 		Cmd:          command,
 		AttachStdout: true,
 		AttachStderr: true,
@@ -149,7 +148,7 @@ func (dm *dockerManager) ExecInContainer(ctx context.Context, containerID string
 // AttachExecStream attaches to an exec instance's stdout/stderr and returns a channel
 // of OutputChunk. It starts the exec instance and demuxes the multiplexed stream.
 func (dm *dockerManager) AttachExecStream(ctx context.Context, execID string) (<-chan models.OutputChunk, error) {
-	resp, err := dm.cli.ContainerExecAttach(ctx, execID, types.ExecStartCheck{})
+	resp, err := dm.cli.ContainerExecAttach(ctx, execID, container.ExecAttachOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to attach to exec %s: %w", execID, err)
 	}

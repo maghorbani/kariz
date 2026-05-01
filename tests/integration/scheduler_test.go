@@ -121,14 +121,6 @@ func (m *mockSchedulerExecutor) ExecuteCommand(ctx context.Context, cmd models.C
 	}, nil
 }
 
-func (m *mockSchedulerExecutor) getExecutions() []scheduledExecution {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	result := make([]scheduledExecution, len(m.executions))
-	copy(result, m.executions)
-	return result
-}
-
 // --- Mock CatalogService for scheduler ---
 
 type mockCatalogService struct {

@@ -12,7 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/kariz/kariz/internal/models"
 	"github.com/kariz/kariz/internal/stream"
-	streamPkg "github.com/kariz/kariz/internal/stream"
 	"github.com/kariz/kariz/internal/validator"
 	"github.com/kariz/kariz/internal/executor"
 )
@@ -32,7 +31,7 @@ func TestSSEStreamingEndToEnd(t *testing.T) {
 
 	// 1. Set up real StreamManager and SSE handler.
 	streamMgr := stream.NewStreamManager()
-	sseHandler := streamPkg.NewSSEHandler(streamMgr)
+	sseHandler := stream.NewSSEHandler(streamMgr)
 
 	// 2. Set up Gin router with SSE endpoint.
 	router := gin.New()

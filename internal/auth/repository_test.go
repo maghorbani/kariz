@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jmoiron/sqlx"
 	"github.com/kariz/kariz/internal/models"
 )
 
@@ -22,14 +21,6 @@ func newTestUser(username string) *models.User {
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
-}
-
-// requireTestDB opens a connection to the test database.
-// It skips the test if the DATABASE_URL env var is not set.
-func requireTestDB(t *testing.T) *sqlx.DB {
-	t.Helper()
-	t.Skip("skipping: requires a running PostgreSQL instance with DATABASE_URL set")
-	return nil
 }
 
 // --- Interface compliance ---

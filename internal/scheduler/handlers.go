@@ -38,11 +38,6 @@ func (h *SchedulerHandler) RegisterRoutes(rg *gin.RouterGroup, authMiddleware gi
 	schedules.POST("/:id/disable", h.DisableSchedule)
 }
 
-// createScheduleRequest is the JSON body for POST /api/schedules.
-type createScheduleRequest struct {
-	models.CreateScheduleInput
-}
-
 // CreateSchedule handles POST /api/schedules.
 func (h *SchedulerHandler) CreateSchedule(c *gin.Context) {
 	session := auth.GetSessionFromContext(c)

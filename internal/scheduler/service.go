@@ -351,7 +351,7 @@ func (s *schedulerService) triggerSchedule(ctx context.Context, schedule models.
 
 	// Parse parameters from the schedule
 	var params map[string]interface{}
-	if schedule.Parameters != nil && len(schedule.Parameters) > 0 {
+	if len(schedule.Parameters) > 0 {
 		if err := json.Unmarshal(schedule.Parameters, &params); err != nil {
 			slog.Error("failed to unmarshal schedule parameters",
 				"schedule_id", schedule.ID,

@@ -494,14 +494,14 @@ func (s *executorService) CancelExecution(ctx context.Context, executionID strin
 	if containerID, ok := s.runningContainers.Load(executionID); ok {
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer stopCancel()
-		if err := s.dockerMgr.StopContainer(stopCtx, containerID.(string), 5); err != nil {
+		if err := s.dockerMgr.StopContainer(stopCtx, containerID.(string), 5); err != nil { //nolint:errcheck // error is checked
 			slog.Error("failed to stop container during cancel", "container_id", containerID, "error", err)
 		}
 	}
 
 	// Cancel the execution context if tracked.
 	if cancelFn, ok := s.runningCancels.Load(executionID); ok {
-		cancelFn.(context.CancelFunc)()
+		cancelFn.(context.CancelFunc)() //nolint:errcheck // CancelFunc has no return value
 	}
 
 	// Update status to cancelled.

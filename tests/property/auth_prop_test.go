@@ -24,19 +24,6 @@ var allRoles = []models.Role{
 
 // --- Generators ---
 
-// genNonEmptyRoleSubset generates a non-empty subset of roles from allRoles.
-func genNonEmptyRoleSubset(t *rapid.T, label string) []models.Role {
-	// Generate a bitmask with at least one bit set
-	mask := rapid.IntRange(1, (1<<len(allRoles))-1).Draw(t, label+"_mask")
-	var roles []models.Role
-	for i, r := range allRoles {
-		if mask&(1<<i) != 0 {
-			roles = append(roles, r)
-		}
-	}
-	return roles
-}
-
 // genDisjointRoleSets generates two non-empty role subsets with empty intersection.
 func genDisjointRoleSets(t *rapid.T) (userRoles []models.Role, commandRoles []models.Role) {
 	// Pick a partition point: at least 1 role on each side
@@ -56,32 +43,6 @@ func genDisjointRoleSets(t *rapid.T) (userRoles []models.Role, commandRoles []mo
 		}
 	}
 	return userRoles, commandRoles
-}
-
-// --- Mock SessionStore for Property 12 ---
-
-type prop12MockSessionStore struct {
-	session *models.SessionData
-}
-
-func (m *prop12MockSessionStore) Create(_ interface{}, data models.SessionData) (string, error) {
-	return "mock-token", nil
-}
-
-func (m *prop12MockSessionStore) Get(_ interface{}, token string) (*models.SessionData, error) {
-	return m.session, nil
-}
-
-func (m *prop12MockSessionStore) Delete(_ interface{}, token string) error {
-	return nil
-}
-
-func (m *prop12MockSessionStore) DeleteByUserID(_ interface{}, userID string) error {
-	return nil
-}
-
-func (m *prop12MockSessionStore) CleanExpired(_ interface{}) error {
-	return nil
 }
 
 // --- Property 12 Tests ---

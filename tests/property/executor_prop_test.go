@@ -441,6 +441,7 @@ func TestProperty9_ConcurrencyLockAllowsWhenConcurrentEnabled(t *testing.T) {
 		}
 		if record == nil {
 			t.Fatal("expected non-nil execution record")
+			return
 		}
 		if record.Status != models.StatusQueued {
 			t.Fatalf("expected status 'queued', got %q", record.Status)
@@ -470,6 +471,7 @@ func TestProperty9_ConcurrencyLockAllowsWhenNoRunning(t *testing.T) {
 		}
 		if record == nil {
 			t.Fatal("expected non-nil execution record")
+			return
 		}
 		if record.Status != models.StatusQueued {
 			t.Fatalf("expected status 'queued', got %q", record.Status)
@@ -516,6 +518,7 @@ func TestProperty9_ConcurrencyLockEnforcement(t *testing.T) {
 			}
 			if record == nil {
 				t.Fatal("expected non-nil execution record")
+			return
 			}
 			if record.Status != models.StatusQueued {
 				t.Fatalf("expected status 'queued', got %q", record.Status)
@@ -655,6 +658,7 @@ func TestProperty19_ExecutionModeRoutingCorrectness(t *testing.T) {
 		}
 		if record == nil {
 			t.Fatal("expected non-nil execution record")
+			return
 		}
 
 		// Wait briefly for the goroutine to start and make Docker calls
