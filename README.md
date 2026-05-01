@@ -1,10 +1,10 @@
 # KARIZ Command Dashboard
 
-[![CI](https://github.com/maghorbani759/kariz/actions/workflows/ci.yml/badge.svg)](https://github.com/maghorbani759/kariz/actions/workflows/ci.yml)
-[![Release](https://github.com/maghorbani759/kariz/actions/workflows/release.yml/badge.svg)](https://github.com/maghorbani759/kariz/actions/workflows/release.yml)
+[![CI](https://github.com/maghorbani/kariz/actions/workflows/ci.yml/badge.svg)](https://github.com/maghorbani/kariz/actions/workflows/ci.yml)
+[![Release](https://github.com/maghorbani/kariz/actions/workflows/release.yml/badge.svg)](https://github.com/maghorbani/kariz/actions/workflows/release.yml)
 [![Docker Image](https://img.shields.io/docker/v/maghorbani759/kariz?sort=semver&label=Docker%20Hub)](https://hub.docker.com/r/maghorbani759/kariz)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/github.com/maghorbani759/kariz)](https://goreportcard.com/report/github.com/maghorbani759/kariz)
+[![Go Report Card](https://goreportcard.com/badge/github.com/maghorbani/kariz)](https://goreportcard.com/report/github.com/maghorbani/kariz)
 
 KARIZ is a self-service command execution platform that provides a web-based dashboard for QA, Data, and Operations teams to run pre-approved production commands on sibling Docker containers. It follows a **Docker-out-of-Docker** pattern — communicating with the host Docker daemon through a mounted socket to create, execute, and clean up ephemeral containers.
 
@@ -75,7 +75,7 @@ docker pull maghorbani759/kariz:latest
 Or from GitHub Container Registry:
 
 ```bash
-docker pull ghcr.io/maghorbani759/kariz:latest
+docker pull ghcr.io/maghorbani/kariz:latest
 ```
 
 Run with an external PostgreSQL instance:
