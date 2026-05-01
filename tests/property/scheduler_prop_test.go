@@ -288,7 +288,7 @@ func TestProperty20_ScheduleTriggersWithCorrectUserID(t *testing.T) {
 		time.Sleep(500 * time.Millisecond)
 
 		cancel()
-		svc.Stop()
+		_ = svc.Stop()
 
 		// Verify execution was triggered with the correct user ID
 		execs := execSvc.getExecutions()

@@ -147,7 +147,7 @@ func TestCreate_TokenIsHexEncoded(t *testing.T) {
 	}
 	// Verify all characters are valid hex
 	for _, c := range token {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			t.Errorf("token contains non-hex character: %c", c)
 		}
 	}

@@ -19,7 +19,7 @@ func clearAllConfigEnv(t *testing.T) {
 	}
 	for _, key := range envVars {
 		t.Setenv(key, "")
-		os.Unsetenv(key)
+		_ = os.Unsetenv(key)
 	}
 }
 

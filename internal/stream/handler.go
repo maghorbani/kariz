@@ -64,6 +64,6 @@ func (h *SSEHandler) StreamExecution(c *gin.Context) {
 
 // writeSSEEvent writes a single SSE event to the response writer.
 func (h *SSEHandler) writeSSEEvent(c *gin.Context, event models.SSEEvent) {
-	fmt.Fprintf(c.Writer, "id: %s\nevent: %s\ndata: %s\n\n", event.ID, event.Event, event.Data)
+	_, _ = fmt.Fprintf(c.Writer, "id: %s\nevent: %s\ndata: %s\n\n", event.ID, event.Event, event.Data)
 	c.Writer.Flush()
 }
