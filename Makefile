@@ -23,14 +23,17 @@ dev: ## Run the server with go run (no build step)
 # Lint
 # ---------------------------------------------------------------------------
 
+GOLANGCI_LINT := $(shell go env GOPATH)/bin/golangci-lint
+
 lint: ## Run golangci-lint
-	golangci-lint run
+	$(GOLANGCI_LINT) run
 
 lint-fix: ## Run golangci-lint with auto-fix
-	golangci-lint run --fix
+	$(GOLANGCI_LINT) run --fix
 
 lint-install: ## Install golangci-lint v2 from source (requires Go 1.25)
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
+	@echo "Installed at: $(GOLANGCI_LINT)"
 
 # ---------------------------------------------------------------------------
 # Tests
