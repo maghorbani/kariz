@@ -16,6 +16,10 @@ type UserRepository interface {
 	GetByUsername(ctx context.Context, username string) (*models.User, error)
 	GetUserRoles(ctx context.Context, userID string) ([]models.Role, error)
 	UpdateRoles(ctx context.Context, userID string, roles []models.Role) error
+	Update(ctx context.Context, user *models.User) error
+	UpdatePassword(ctx context.Context, userID, passwordHash string) error
+	CountActiveAdmins(ctx context.Context) (int, error)
+	CountActiveAdminsWithRole(ctx context.Context, excludeUserID string) (int, error)
 	List(ctx context.Context) ([]models.UserProfile, error)
 }
 
@@ -150,6 +154,58 @@ func (r *userRepository) List(ctx context.Context) ([]models.UserProfile, error)
 	}
 
 	return profiles, nil
+}
+
+// Update persists changes to email and is_active for a user.
+func (r *userRepository) Update(ctx context.Context, user *models.User) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE users SET email = $1, is_active = $2, updated_at = $3
+		WHERE id = $4`,
+		user.Email, user.IsActive, user.UpdatedAt, user.ID)
+	if err != nil {
+		return fmt.Errorf("update user: %w", err)
+	}
+	return nil
+}
+
+// UpdatePassword sets a new password hash for a user.
+func (r *userRepository) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE users SET password_hash = $1, updated_at = NOW()
+		WHERE id = $2`, passwordHash, userID)
+	if err != nil {
+		return fmt.Errorf("update password: %w", err)
+	}
+	return nil
+}
+
+// CountActiveAdmins returns the number of active users with the admin role.
+func (r *userRepository) CountActiveAdmins(ctx context.Context) (int, error) {
+	return r.countActiveAdmins(ctx, "")
+}
+
+// CountActiveAdminsWithRole counts active admins optionally excluding a user ID.
+func (r *userRepository) CountActiveAdminsWithRole(ctx context.Context, excludeUserID string) (int, error) {
+	return r.countActiveAdmins(ctx, excludeUserID)
+}
+
+func (r *userRepository) countActiveAdmins(ctx context.Context, excludeUserID string) (int, error) {
+	var count int
+	query := `
+		SELECT COUNT(DISTINCT u.id)
+		FROM users u
+		INNER JOIN user_roles ur ON ur.user_id = u.id
+		WHERE u.is_active = true AND ur.role = 'admin'`
+	args := []interface{}{}
+	if excludeUserID != "" {
+		query += ` AND u.id != $1`
+		args = append(args, excludeUserID)
+	}
+	err := r.db.GetContext(ctx, &count, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("count active admins: %w", err)
+	}
+	return count, nil
 }
 
 // insertUserRoles inserts role records for a user within the given transaction.

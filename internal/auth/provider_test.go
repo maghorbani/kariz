@@ -60,6 +60,22 @@ func (m *mockUserRepo) UpdateRoles(_ context.Context, _ string, _ []models.Role)
 	return nil
 }
 
+func (m *mockUserRepo) Update(_ context.Context, _ *models.User) error {
+	return nil
+}
+
+func (m *mockUserRepo) UpdatePassword(_ context.Context, _, _ string) error {
+	return nil
+}
+
+func (m *mockUserRepo) CountActiveAdmins(_ context.Context) (int, error) {
+	return 1, nil
+}
+
+func (m *mockUserRepo) CountActiveAdminsWithRole(_ context.Context, _ string) (int, error) {
+	return 1, nil
+}
+
 func (m *mockUserRepo) List(_ context.Context) ([]models.UserProfile, error) {
 	return nil, nil
 }

@@ -293,6 +293,11 @@ func (m *prop21MockDockerManager) InspectExec(ctx context.Context, execID string
 func (m *prop21MockDockerManager) InspectContainerEnv(ctx context.Context, containerNameOrID string) (map[string]string, error) {
 	return nil, fmt.Errorf("not implemented")
 }
+func (m *prop21MockDockerManager) ContainerLogs(ctx context.Context, containerID string, opts models.LogOptions) (<-chan models.OutputChunk, error) {
+	ch := make(chan models.OutputChunk)
+	close(ch)
+	return ch, nil
+}
 
 // --- In-memory artifact repository for Property 21 ---
 

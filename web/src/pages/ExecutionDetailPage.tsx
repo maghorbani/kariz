@@ -1,19 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   Button,
   Card,
   Descriptions,
+  Popconfirm,
   Space,
   Spin,
   Table,
   Tag,
   Typography,
+  message,
 } from 'antd';
-import { ArrowLeftOutlined, DownloadOutlined } from '@ant-design/icons';
-import { get } from '@/api/client';
+import {
+  ArrowLeftOutlined,
+  DownloadOutlined,
+  ReloadOutlined,
+  StopOutlined,
+} from '@ant-design/icons';
+import { ApiError, get, post } from '@/api/client';
 import type { ExecutionRecord, ExecutionArtifact, ExecutionStatus } from '@/types';
 import ExecutionStatusBadge from '@/components/ExecutionStatusBadge';
 
@@ -40,7 +47,10 @@ function formatDuration(startedAt?: string, completedAt?: string): string {
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
   const remainSec = seconds % 60;
-  return `${minutes}m ${remainSec}s`;
+  if (minutes < 60) return `${minutes}m ${remainSec}s`;
+  const hours = Math.floor(minutes / 60);
+  const remainMin = minutes % 60;
+  return `${hours}h ${remainMin}m`;
 }
 
 function formatTime(iso?: string): string {
@@ -51,11 +61,12 @@ function formatTime(iso?: string): string {
 export default function ExecutionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  // Streaming output state
   const [outputLines, setOutputLines] = useState<string[]>([]);
   const [sseConnected, setSseConnected] = useState(false);
   const [sseError, setSseError] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
   const lastEventIdRef = useRef<string>('');
   const eventSourceRef = useRef<EventSource | null>(null);
   const terminalRef = useRef<HTMLPreElement | null>(null);
@@ -71,20 +82,36 @@ export default function ExecutionDetailPage() {
     enabled: !!id,
     refetchInterval: (query) => {
       const data = query.state.data;
-      // Auto-refresh while not terminal
       if (data && !isTerminal(data.status)) return 5000;
       return false;
     },
   });
 
-  // Fetch artifacts separately from the execution_artifacts table.
   const { data: artifacts } = useQuery<ExecutionArtifact[]>({
     queryKey: ['execution-artifacts', id],
     queryFn: () => get<ExecutionArtifact[]>(`/executions/${id}/artifacts`),
     enabled: !!id && !!execution && isTerminal(execution.status),
   });
 
-  // Auto-scroll terminal to bottom
+  const cancelMutation = useMutation({
+    mutationFn: () => post(`/executions/${id}/cancel`),
+    onSuccess: () => {
+      message.success('Execution cancelled');
+      queryClient.invalidateQueries({ queryKey: ['execution', id] });
+      refetch();
+    },
+    onError: (err: unknown) => {
+      const msg =
+        err instanceof ApiError &&
+        err.body &&
+        typeof err.body === 'object' &&
+        'message' in err.body
+          ? (err.body as { message: string }).message
+          : 'Failed to cancel execution';
+      message.error(msg);
+    },
+  });
+
   const scrollToBottom = useCallback(() => {
     if (terminalRef.current) {
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
@@ -95,19 +122,26 @@ export default function ExecutionDetailPage() {
     scrollToBottom();
   }, [outputLines, scrollToBottom]);
 
-  // SSE connection for running executions
+  // Live duration ticker while running
   useEffect(() => {
-    if (!id || !execution) return;
-    if (isTerminal(execution.status)) {
-      // For terminal statuses, show stored output instead
-      const lines: string[] = [];
-      if (execution.stdout) lines.push(execution.stdout);
-      if (execution.stderr) lines.push(execution.stderr);
-      setOutputLines(lines);
-      return;
-    }
+    if (!execution || isTerminal(execution.status)) return;
+    const interval = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, [execution?.status, execution]);
 
-    // Connect to SSE stream
+  const closeStream = useCallback(() => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+    setSseConnected(false);
+  }, []);
+
+  const connectStream = useCallback(() => {
+    if (!id) return;
+    closeStream();
+    setSseError(null);
+
     const sseUrl = `/api/executions/${id}/stream`;
     const eventSource = new EventSource(sseUrl);
     eventSourceRef.current = eventSource;
@@ -128,7 +162,6 @@ export default function ExecutionDetailPage() {
           setOutputLines((prev) => [...prev, text]);
         }
       } catch {
-        // If data is plain text, append directly
         if (event.data) {
           setOutputLines((prev) => [...prev, event.data]);
         }
@@ -136,27 +169,32 @@ export default function ExecutionDetailPage() {
     });
 
     eventSource.addEventListener('complete', () => {
-      eventSource.close();
-      setSseConnected(false);
-      // Refresh execution data to get final status
+      closeStream();
       refetch();
     });
 
     eventSource.onerror = () => {
       setSseConnected(false);
-      // EventSource will auto-reconnect for transient errors.
-      // If the connection is closed permanently, set an error.
       if (eventSource.readyState === EventSource.CLOSED) {
-        setSseError('Stream connection lost. Refresh to reconnect.');
+        setSseError('Stream connection lost. Use Reconnect to resume.');
       }
     };
+  }, [id, closeStream, refetch]);
 
-    return () => {
-      eventSource.close();
-      eventSourceRef.current = null;
-      setSseConnected(false);
-    };
-  }, [id, execution?.status, execution, refetch]);
+  useEffect(() => {
+    if (!id || !execution) return;
+    if (isTerminal(execution.status)) {
+      closeStream();
+      const lines: string[] = [];
+      if (execution.stdout) lines.push(execution.stdout);
+      if (execution.stderr) lines.push(execution.stderr);
+      setOutputLines(lines);
+      return;
+    }
+
+    connectStream();
+    return () => closeStream();
+  }, [id, execution?.status, execution, connectStream, closeStream]);
 
   if (isLoading) {
     return (
@@ -175,7 +213,7 @@ export default function ExecutionDetailPage() {
 
   if (fetchError) {
     return (
-      <div style={{ padding: 24, maxWidth: 1000, margin: '0 auto' }}>
+      <div style={{ maxWidth: 1000, margin: '0 auto' }}>
         <Alert
           message="Failed to load execution"
           description={
@@ -199,7 +237,7 @@ export default function ExecutionDetailPage() {
 
   if (!execution) {
     return (
-      <div style={{ padding: 24, maxWidth: 1000, margin: '0 auto' }}>
+      <div style={{ maxWidth: 1000, margin: '0 auto' }}>
         <Alert message="Execution not found" type="warning" showIcon />
         <Button
           style={{ marginTop: 16 }}
@@ -213,22 +251,45 @@ export default function ExecutionDetailPage() {
   }
 
   const terminalOutput = outputLines.join('');
+  const isRunning =
+    execution.status === 'running' || execution.status === 'queued';
+  void tick;
 
   return (
-    <div style={{ padding: 24, maxWidth: 1000, margin: '0 auto' }}>
-      <Space style={{ marginBottom: 16 }}>
+    <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+      <Space style={{ marginBottom: 16 }} wrap>
         <Button
           icon={<ArrowLeftOutlined />}
           onClick={() => navigate('/executions')}
         >
           Back to History
         </Button>
+        {isRunning && (
+          <Popconfirm
+            title="Cancel this execution?"
+            onConfirm={() => cancelMutation.mutate()}
+            okText="Cancel execution"
+            okButtonProps={{ danger: true }}
+          >
+            <Button
+              danger
+              icon={<StopOutlined />}
+              loading={cancelMutation.isPending}
+            >
+              Cancel
+            </Button>
+          </Popconfirm>
+        )}
       </Space>
 
       <Card style={{ marginBottom: 16 }}>
         <Space
           align="center"
-          style={{ marginBottom: 16, justifyContent: 'space-between', width: '100%' }}
+          style={{
+            marginBottom: 16,
+            justifyContent: 'space-between',
+            width: '100%',
+          }}
         >
           <Title level={3} style={{ margin: 0 }}>
             Execution Detail
@@ -259,11 +320,13 @@ export default function ExecutionDetailPage() {
           </Descriptions.Item>
           <Descriptions.Item label="Duration" span={2}>
             {formatDuration(execution.started_at, execution.completed_at)}
+            {isRunning && (
+              <Text type="secondary"> (live)</Text>
+            )}
           </Descriptions.Item>
         </Descriptions>
       </Card>
 
-      {/* Terminal output panel */}
       <Card
         title={
           <Space>
@@ -274,6 +337,17 @@ export default function ExecutionDetailPage() {
               </Text>
             )}
           </Space>
+        }
+        extra={
+          !isTerminal(execution.status) && sseError ? (
+            <Button
+              size="small"
+              icon={<ReloadOutlined />}
+              onClick={connectStream}
+            >
+              Reconnect stream
+            </Button>
+          ) : null
         }
       >
         {sseError && (
@@ -315,7 +389,6 @@ export default function ExecutionDetailPage() {
         </pre>
       </Card>
 
-      {/* Artifacts panel */}
       {artifacts && artifacts.length > 0 && (
         <Card title="Artifacts" style={{ marginTop: 16 }}>
           <Table<ExecutionArtifact>
@@ -342,7 +415,8 @@ export default function ExecutionDetailPage() {
                 render: (bytes: number) => {
                   if (!bytes) return '—';
                   if (bytes < 1024) return `${bytes} B`;
-                  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+                  if (bytes < 1024 * 1024)
+                    return `${(bytes / 1024).toFixed(1)} KB`;
                   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
                 },
               },
@@ -351,7 +425,9 @@ export default function ExecutionDetailPage() {
                 dataIndex: 'status',
                 key: 'status',
                 render: (status: string) => (
-                  <Tag color={status === 'stored' ? 'green' : 'red'}>{status}</Tag>
+                  <Tag color={status === 'stored' ? 'green' : 'red'}>
+                    {status}
+                  </Tag>
                 ),
               },
               {
@@ -372,7 +448,9 @@ export default function ExecutionDetailPage() {
                       Download
                     </Button>
                   ) : (
-                    <Text type="secondary">{record.error_message || 'Failed'}</Text>
+                    <Text type="secondary">
+                      {record.error_message || 'Failed'}
+                    </Text>
                   ),
               },
             ]}

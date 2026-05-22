@@ -22,8 +22,6 @@ services:
       POSTGRES_USER: kariz
       POSTGRES_PASSWORD: kariz
       POSTGRES_DB: kariz
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

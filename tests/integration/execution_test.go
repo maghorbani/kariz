@@ -180,6 +180,12 @@ func (m *mockDockerManager) CopyFromContainer(ctx context.Context, containerID s
 	return nil, fmt.Errorf("not implemented")
 }
 
+func (m *mockDockerManager) ContainerLogs(ctx context.Context, containerID string, opts models.LogOptions) (<-chan models.OutputChunk, error) {
+	ch := make(chan models.OutputChunk)
+	close(ch)
+	return ch, nil
+}
+
 // --- Mock NotificationService ---
 
 type mockNotificationService struct {

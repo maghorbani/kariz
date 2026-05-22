@@ -37,6 +37,7 @@ type commandEntryRow struct {
 	AllowConcurrent     bool                      `db:"allow_concurrent"`
 	ExecutionMode       models.ExecutionMode      `db:"execution_mode"`
 	TargetContainer     string                    `db:"target_container"`
+	LogOptions          *models.LogOptions        `db:"log_options"`
 	Artifacts           models.ArtifactDeclareList `db:"artifacts"`
 	ArtifactDestination *models.ArtifactDestConfig `db:"artifact_destination"`
 	IsActive            bool                      `db:"is_active"`
@@ -61,6 +62,7 @@ func (r *commandEntryRow) toCommandEntry() *models.CommandEntry {
 		AllowConcurrent:     r.AllowConcurrent,
 		ExecutionMode:       r.ExecutionMode,
 		TargetContainer:     r.TargetContainer,
+		LogOptions:          r.LogOptions,
 		Artifacts:           []models.ArtifactDeclare(r.Artifacts),
 		ArtifactDestination: r.ArtifactDestination,
 		IsActive:            r.IsActive,
@@ -102,23 +104,28 @@ func (r *commandRepository) Create(ctx context.Context, entry *models.CommandEnt
 		artifactDestJSON, _ = entry.ArtifactDestination.Value()
 	}
 
+	var logOptionsJSON interface{}
+	if entry.LogOptions != nil {
+		logOptionsJSON, _ = entry.LogOptions.Value()
+	}
+
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO command_entries (
 			id, name, description, category, docker_image, command_string,
 			parameter_schema, resource_limits, volumes, timeout_seconds,
-			allow_concurrent, execution_mode, target_container, artifacts,
-			artifact_destination, is_active, version, created_at, updated_at
+			allow_concurrent, execution_mode, target_container, log_options,
+			artifacts, artifact_destination, is_active, version, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6,
 			$7, $8, $9, $10,
 			$11, $12, $13, $14,
-			$15, $16, $17, $18, $19
+			$15, $16, $17, $18, $19, $20
 		)`,
 		entry.ID, entry.Name, entry.Description, entry.Category,
 		entry.DockerImage, entry.CommandString,
 		paramSchemaJSON, resourceLimitsJSON, volumesJSON, entry.TimeoutSeconds,
-		entry.AllowConcurrent, entry.ExecutionMode, entry.TargetContainer, artifactsJSON,
-		artifactDestJSON, entry.IsActive, entry.Version, entry.CreatedAt, entry.UpdatedAt,
+		entry.AllowConcurrent, entry.ExecutionMode, entry.TargetContainer, logOptionsJSON,
+		artifactsJSON, artifactDestJSON, entry.IsActive, entry.Version, entry.CreatedAt, entry.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert command entry: %w", err)
@@ -137,8 +144,8 @@ func (r *commandRepository) GetByID(ctx context.Context, id string) (*models.Com
 	err := r.db.GetContext(ctx, &row,
 		`SELECT id, name, description, category, docker_image, command_string,
 			parameter_schema, resource_limits, volumes, timeout_seconds,
-			allow_concurrent, execution_mode, target_container, artifacts,
-			artifact_destination, is_active, version, created_at, updated_at
+			allow_concurrent, execution_mode, target_container, log_options,
+			artifacts, artifact_destination, is_active, version, created_at, updated_at
 		FROM command_entries WHERE id = $1`, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -164,8 +171,8 @@ func (r *commandRepository) GetByName(ctx context.Context, name string) (*models
 	err := r.db.GetContext(ctx, &row,
 		`SELECT id, name, description, category, docker_image, command_string,
 			parameter_schema, resource_limits, volumes, timeout_seconds,
-			allow_concurrent, execution_mode, target_container, artifacts,
-			artifact_destination, is_active, version, created_at, updated_at
+			allow_concurrent, execution_mode, target_container, log_options,
+			artifacts, artifact_destination, is_active, version, created_at, updated_at
 		FROM command_entries WHERE name = $1`, name)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -206,21 +213,26 @@ func (r *commandRepository) Update(ctx context.Context, entry *models.CommandEnt
 		artifactDestJSON, _ = entry.ArtifactDestination.Value()
 	}
 
+	var logOptionsJSON interface{}
+	if entry.LogOptions != nil {
+		logOptionsJSON, _ = entry.LogOptions.Value()
+	}
+
 	result, err := tx.ExecContext(ctx, `
 		UPDATE command_entries SET
 			name = $1, description = $2, category = $3,
 			docker_image = $4, command_string = $5,
 			parameter_schema = $6, resource_limits = $7, volumes = $8,
 			timeout_seconds = $9, allow_concurrent = $10,
-			execution_mode = $11, target_container = $12,
-			artifacts = $13, artifact_destination = $14,
-			is_active = $15, version = $16, updated_at = $17
-		WHERE id = $18`,
+			execution_mode = $11, target_container = $12, log_options = $13,
+			artifacts = $14, artifact_destination = $15,
+			is_active = $16, version = $17, updated_at = $18
+		WHERE id = $19`,
 		entry.Name, entry.Description, entry.Category,
 		entry.DockerImage, entry.CommandString,
 		paramSchemaJSON, resourceLimitsJSON, volumesJSON,
 		entry.TimeoutSeconds, entry.AllowConcurrent,
-		entry.ExecutionMode, entry.TargetContainer,
+		entry.ExecutionMode, entry.TargetContainer, logOptionsJSON,
 		artifactsJSON, artifactDestJSON,
 		entry.IsActive, entry.Version, entry.UpdatedAt,
 		entry.ID,
@@ -283,8 +295,8 @@ func (r *commandRepository) List(ctx context.Context, filter models.CommandFilte
 	selectFrom := `SELECT DISTINCT ce.id, ce.name, ce.description, ce.category,
 		ce.docker_image, ce.command_string, ce.parameter_schema, ce.resource_limits,
 		ce.volumes, ce.timeout_seconds, ce.allow_concurrent, ce.execution_mode,
-		ce.target_container, ce.artifacts, ce.artifact_destination, ce.is_active,
-		ce.version, ce.created_at, ce.updated_at
+		ce.target_container, ce.log_options, ce.artifacts, ce.artifact_destination,
+		ce.is_active, ce.version, ce.created_at, ce.updated_at
 		FROM command_entries ce`
 
 	countFrom := `SELECT COUNT(DISTINCT ce.id) FROM command_entries ce`

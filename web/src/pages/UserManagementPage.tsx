@@ -4,33 +4,47 @@ import {
   Alert,
   Button,
   Checkbox,
+  Form,
+  Input,
   message,
   Modal,
+  Popconfirm,
   Space,
   Table,
   Tag,
   Typography,
 } from 'antd';
-import { EditOutlined } from '@ant-design/icons';
-import { get, put } from '@/api/client';
+import { EditOutlined, PlusOutlined, StopOutlined } from '@ant-design/icons';
+import { ApiError, get, post, put } from '@/api/client';
 import type { UserProfile } from '@/types';
+import { ALL_ROLES, ROLE_COLORS } from '@/utils/auth';
+import { useAuth } from '@/context/AuthContext';
 
 const { Title } = Typography;
 
-const ALL_ROLES = ['admin', 'qa', 'data', 'operations'];
+interface CreateUserForm {
+  username: string;
+  password: string;
+  email: string;
+  roles: string[];
+}
 
-const ROLE_COLORS: Record<string, string> = {
-  admin: 'red',
-  qa: 'blue',
-  data: 'green',
-  operations: 'orange',
-};
+function apiErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError && err.body && typeof err.body === 'object' && 'message' in err.body) {
+    return (err.body as { message: string }).message;
+  }
+  if (err instanceof Error) return err.message;
+  return fallback;
+}
 
 export default function UserManagementPage() {
   const queryClient = useQueryClient();
+  const { user: currentUser } = useAuth();
+  const [createForm] = Form.useForm<CreateUserForm>();
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [rolesModalOpen, setRolesModalOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const {
     data: users,
@@ -47,23 +61,47 @@ export default function UserManagementPage() {
     onSuccess: () => {
       message.success('Roles updated successfully');
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-      closeModal();
+      closeRolesModal();
     },
     onError: (err: unknown) => {
-      const msg =
-        err instanceof Error ? err.message : 'Failed to update roles';
-      message.error(msg);
+      message.error(apiErrorMessage(err, 'Failed to update roles'));
     },
   });
 
-  const openEditModal = useCallback((user: UserProfile) => {
+  const createUserMutation = useMutation({
+    mutationFn: (values: CreateUserForm) =>
+      post<UserProfile>('/admin/users', values),
+    onSuccess: () => {
+      message.success('User created successfully');
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setCreateModalOpen(false);
+      createForm.resetFields();
+    },
+    onError: (err: unknown) => {
+      message.error(apiErrorMessage(err, 'Failed to create user'));
+    },
+  });
+
+  const deactivateMutation = useMutation({
+    mutationFn: (userId: string) =>
+      post<UserProfile>(`/admin/users/${userId}/deactivate`),
+    onSuccess: () => {
+      message.success('User deactivated');
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+    },
+    onError: (err: unknown) => {
+      message.error(apiErrorMessage(err, 'Failed to deactivate user'));
+    },
+  });
+
+  const openRolesModal = useCallback((user: UserProfile) => {
     setEditingUser(user);
     setSelectedRoles([...user.roles]);
-    setModalOpen(true);
+    setRolesModalOpen(true);
   }, []);
 
-  const closeModal = useCallback(() => {
-    setModalOpen(false);
+  const closeRolesModal = useCallback(() => {
+    setRolesModalOpen(false);
     setEditingUser(null);
     setSelectedRoles([]);
   }, []);
@@ -99,9 +137,7 @@ export default function UserManagementPage() {
               {role}
             </Tag>
           ))}
-          {roles.length === 0 && (
-            <Tag color="default">No roles</Tag>
-          )}
+          {roles.length === 0 && <Tag color="default">No roles</Tag>}
         </Space>
       ),
     },
@@ -119,29 +155,63 @@ export default function UserManagementPage() {
       title: 'Actions',
       key: 'actions',
       render: (_: unknown, record: UserProfile) => (
-        <Button
-          icon={<EditOutlined />}
-          size="small"
-          onClick={() => openEditModal(record)}
-        >
-          Edit Roles
-        </Button>
+        <Space>
+          <Button
+            icon={<EditOutlined />}
+            size="small"
+            onClick={() => openRolesModal(record)}
+          >
+            Edit Roles
+          </Button>
+          {record.is_active && record.id !== currentUser?.id && (
+            <Popconfirm
+              title="Deactivate this user?"
+              description="They will be logged out and cannot sign in again."
+              onConfirm={() => deactivateMutation.mutate(record.id)}
+              okText="Deactivate"
+              okButtonProps={{ danger: true }}
+            >
+              <Button
+                icon={<StopOutlined />}
+                size="small"
+                danger
+                loading={deactivateMutation.isPending}
+              >
+                Deactivate
+              </Button>
+            </Popconfirm>
+          )}
+        </Space>
       ),
     },
   ];
 
   return (
-    <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
-      <Title level={2}>User Management</Title>
+    <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 16,
+        }}
+      >
+        <Title level={2} style={{ margin: 0 }}>
+          User Management
+        </Title>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={() => setCreateModalOpen(true)}
+        >
+          Add User
+        </Button>
+      </div>
 
       {error && (
         <Alert
           message="Failed to load users"
-          description={
-            error instanceof Error
-              ? error.message
-              : 'An unexpected error occurred.'
-          }
+          description={apiErrorMessage(error, 'An unexpected error occurred.')}
           type="error"
           showIcon
           style={{ marginBottom: 16 }}
@@ -157,19 +227,70 @@ export default function UserManagementPage() {
       />
 
       <Modal
+        title="Create User"
+        open={createModalOpen}
+        onOk={() => createForm.submit()}
+        onCancel={() => {
+          setCreateModalOpen(false);
+          createForm.resetFields();
+        }}
+        confirmLoading={createUserMutation.isPending}
+        okText="Create"
+      >
+        <Form
+          form={createForm}
+          layout="vertical"
+          onFinish={(values) => createUserMutation.mutate(values)}
+          initialValues={{ roles: ['qa'] }}
+        >
+          <Form.Item
+            name="username"
+            label="Username"
+            rules={[{ required: true, message: 'Username is required' }]}
+          >
+            <Input />
+          </Form.Item>
+          <Form.Item
+            name="email"
+            label="Email"
+          >
+            <Input type="email" />
+          </Form.Item>
+          <Form.Item
+            name="password"
+            label="Password"
+            rules={[{ required: true, min: 6, message: 'At least 6 characters' }]}
+          >
+            <Input.Password />
+          </Form.Item>
+          <Form.Item
+            name="roles"
+            label="Roles"
+            rules={[{ required: true, message: 'Select at least one role' }]}
+          >
+            <Checkbox.Group
+              options={ALL_ROLES.map((role) => ({
+                label: <Tag color={ROLE_COLORS[role]}>{role}</Tag>,
+                value: role,
+              }))}
+              style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
         title={`Edit Roles — ${editingUser?.username ?? ''}`}
-        open={modalOpen}
+        open={rolesModalOpen}
         onOk={handleSaveRoles}
-        onCancel={closeModal}
+        onCancel={closeRolesModal}
         confirmLoading={updateRolesMutation.isPending}
         okText="Save"
       >
         <div style={{ padding: '16px 0' }}>
           <Checkbox.Group
             options={ALL_ROLES.map((role) => ({
-              label: (
-                <Tag color={ROLE_COLORS[role] ?? 'default'}>{role}</Tag>
-              ),
+              label: <Tag color={ROLE_COLORS[role] ?? 'default'}>{role}</Tag>,
               value: role,
             }))}
             value={selectedRoles}

@@ -282,6 +282,8 @@ func TestUpdateCommand_IncrementsVersion(t *testing.T) {
 		ID:            "cmd-1",
 		Name:          "original-name",
 		CommandString: "echo original",
+		DockerImage:   "alpine:latest",
+		ExecutionMode: models.ModeCreate,
 		AllowedRoles:  []models.Role{models.RoleAdmin},
 		Version:       3,
 		IsActive:      true,

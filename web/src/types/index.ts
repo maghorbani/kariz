@@ -8,6 +8,19 @@ export interface UserProfile {
   is_active: boolean;
 }
 
+export interface CreateUserRequest {
+  username: string;
+  password: string;
+  email?: string;
+  roles: string[];
+}
+
+export interface UpdateUserRequest {
+  email?: string;
+  is_active?: boolean;
+  password?: string;
+}
+
 export interface LoginCredentials {
   username: string;
   password: string;
@@ -73,6 +86,12 @@ export interface ArtifactDestConfig {
   region?: string;
 }
 
+export interface LogOptions {
+  tail_lines: number;
+  follow: boolean;
+  timestamps: boolean;
+}
+
 export interface CommandEntry {
   id: string;
   name: string;
@@ -86,8 +105,9 @@ export interface CommandEntry {
   volumes: VolumeMount[];
   timeout_seconds: number;
   allow_concurrent: boolean;
-  execution_mode: 'create' | 'exec';
+  execution_mode: 'create' | 'exec' | 'logs';
   target_container?: string;
+  log_options?: LogOptions;
   artifacts?: ArtifactDeclare[];
   artifact_destination?: ArtifactDestConfig;
   is_active: boolean;

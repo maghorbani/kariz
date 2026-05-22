@@ -119,12 +119,16 @@ func (s *executorService) ExecuteCommand(ctx context.Context, commandEntry model
 		return nil, err
 	}
 
-	// 3. Build command args
-	cmdArgs, err := s.paramVal.BuildCommandArgs(commandEntry.CommandString, commandEntry.ParameterSchema, params)
-	if err != nil {
-		return nil, &models.APIError{
-			Code:    "internal_error",
-			Message: fmt.Sprintf("failed to build command args: %v", err),
+	// 3. Build command args (not used for logs mode)
+	var cmdArgs []string
+	if commandEntry.ExecutionMode != models.ModeLogs {
+		var err error
+		cmdArgs, err = s.paramVal.BuildCommandArgs(commandEntry.CommandString, commandEntry.ParameterSchema, params)
+		if err != nil {
+			return nil, &models.APIError{
+				Code:    "internal_error",
+				Message: fmt.Sprintf("failed to build command args: %v", err),
+			}
 		}
 	}
 
@@ -158,6 +162,8 @@ func (s *executorService) ExecuteCommand(ctx context.Context, commandEntry model
 	switch commandEntry.ExecutionMode {
 	case models.ModeExec:
 		go s.runExecMode(commandEntry, record, cmdArgs)
+	case models.ModeLogs:
+		go s.runLogsMode(commandEntry, record)
 	default:
 		go s.runCreateMode(commandEntry, record, cmdArgs)
 	}
@@ -189,12 +195,7 @@ func (s *executorService) checkConcurrencyLock(ctx context.Context, cmd models.C
 // runCreateMode handles the Docker container lifecycle for "create" mode:
 // create → start → attach stream → capture output → copy artifacts → remove container.
 func (s *executorService) runCreateMode(cmd models.CommandEntry, record *models.ExecutionRecord, cmdArgs []string) {
-	// Use a background context with timeout, independent of the HTTP request.
-	timeout := time.Duration(cmd.TimeoutSeconds) * time.Second
-	if timeout <= 0 {
-		timeout = 30 * time.Minute // default timeout
-	}
-	execCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	execCtx, cancel := newExecutionContext(cmd.TimeoutSeconds)
 	defer cancel()
 
 	// Track the cancel function for cancellation support.
@@ -280,12 +281,7 @@ func (s *executorService) runCreateMode(cmd models.CommandEntry, record *models.
 // runExecMode handles the Docker exec lifecycle for "exec" mode:
 // exec in container → attach stream → capture output.
 func (s *executorService) runExecMode(cmd models.CommandEntry, record *models.ExecutionRecord, cmdArgs []string) {
-	// Use a background context with timeout.
-	timeout := time.Duration(cmd.TimeoutSeconds) * time.Second
-	if timeout <= 0 {
-		timeout = 30 * time.Minute
-	}
-	execCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	execCtx, cancel := newExecutionContext(cmd.TimeoutSeconds)
 	defer cancel()
 
 	// Track the cancel function for cancellation support.
@@ -360,6 +356,65 @@ func (s *executorService) runExecMode(cmd models.CommandEntry, record *models.Ex
 	s.updateRecord(record)
 	s.notifyCompletion(record)
 	s.signalStreamComplete(record.ID, record.Status)
+}
+
+// runLogsMode streams container logs via the Docker logs API until timeout, cancel, or stream end.
+func (s *executorService) runLogsMode(cmd models.CommandEntry, record *models.ExecutionRecord) {
+	execCtx, cancel := newExecutionContext(cmd.TimeoutSeconds)
+	defer cancel()
+
+	s.runningCancels.Store(record.ID, cancel)
+	defer s.runningCancels.Delete(record.ID)
+
+	now := time.Now().UTC()
+	record.StartedAt = &now
+	record.Status = models.StatusRunning
+	record.ContainerID = &cmd.TargetContainer
+	s.updateRecord(record)
+
+	s.runningContainers.Store(record.ID, cmd.TargetContainer)
+	defer s.runningContainers.Delete(record.ID)
+
+	logOpts := models.DefaultLogOptions()
+	if cmd.LogOptions != nil {
+		logOpts = cmd.LogOptions
+	}
+
+	outputCh, err := s.dockerMgr.ContainerLogs(execCtx, cmd.TargetContainer, *logOpts)
+	if err != nil {
+		s.failExecution(record, fmt.Sprintf("failed to stream container logs: %v", err))
+		return
+	}
+
+	stdout, stderr := s.captureOutput(record.ID, outputCh)
+	record.Stdout = stdout
+	record.Stderr = stderr
+
+	if execCtx.Err() == context.DeadlineExceeded {
+		s.timeoutExecExecution(record)
+		return
+	}
+	if execCtx.Err() == context.Canceled {
+		return
+	}
+
+	exitCode := 0
+	record.ExitCode = &exitCode
+	record.Status = models.StatusCompleted
+	completedAt := time.Now().UTC()
+	record.CompletedAt = &completedAt
+	s.updateRecord(record)
+	s.notifyCompletion(record)
+	s.signalStreamComplete(record.ID, record.Status)
+}
+
+// newExecutionContext returns a context for command execution.
+// timeoutSeconds == 0 means no timeout (cancel-only).
+func newExecutionContext(timeoutSeconds int) (context.Context, context.CancelFunc) {
+	if timeoutSeconds <= 0 {
+		return context.WithCancel(context.Background())
+	}
+	return context.WithTimeout(context.Background(), time.Duration(timeoutSeconds)*time.Second)
 }
 
 // captureOutput reads from the output channel and accumulates stdout/stderr.

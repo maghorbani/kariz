@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +27,7 @@ type DockerManager interface {
 	InspectExec(ctx context.Context, execID string) (*models.ExecInspectResult, error)
 	InspectContainerEnv(ctx context.Context, containerNameOrID string) (map[string]string, error)
 	CopyFromContainer(ctx context.Context, containerID string, srcPath string) (io.ReadCloser, error)
+	ContainerLogs(ctx context.Context, containerID string, opts models.LogOptions) (<-chan models.OutputChunk, error)
 }
 
 // dockerManager is the concrete implementation of DockerManager using the Docker SDK.
@@ -188,6 +190,32 @@ func (dm *dockerManager) InspectContainerEnv(ctx context.Context, containerNameO
 	}
 
 	return envMap, nil
+}
+
+// ContainerLogs streams stdout/stderr from a container using the Docker logs API.
+func (dm *dockerManager) ContainerLogs(ctx context.Context, containerID string, opts models.LogOptions) (<-chan models.OutputChunk, error) {
+	tail := "all"
+	if opts.TailLines > 0 {
+		tail = strconv.Itoa(opts.TailLines)
+	}
+
+	reader, err := dm.cli.ContainerLogs(ctx, containerID, container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Follow:     opts.Follow,
+		Tail:       tail,
+		Timestamps: opts.Timestamps,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get logs for container %s: %w", containerID, err)
+	}
+
+	ch := make(chan models.OutputChunk, 64)
+	go func() {
+		defer reader.Close()
+		demuxStream(ctx, reader, ch)
+	}()
+	return ch, nil
 }
 
 // CopyFromContainer copies a file or directory from a container and returns an

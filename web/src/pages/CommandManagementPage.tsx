@@ -74,8 +74,12 @@ interface CommandFormValues {
   allowed_roles: string[];
   timeout_seconds: number;
   allow_concurrent: boolean;
-  execution_mode: 'create' | 'exec';
+  execution_mode: 'create' | 'exec' | 'logs';
   target_container?: string;
+  log_tail_lines?: number;
+  log_follow?: boolean;
+  log_timestamps?: boolean;
+  timeout_preset?: string;
   cpu_shares?: number;
   memory_mb?: number;
   cpu_count?: number;
@@ -86,6 +90,24 @@ interface CommandFormValues {
   artifact_dest_bucket?: string;
   artifact_dest_path_prefix?: string;
   artifact_dest_endpoint?: string;
+}
+
+const TIMEOUT_PRESETS: { label: string; value: string; seconds: number }[] = [
+  { label: '5 minutes', value: '300', seconds: 300 },
+  { label: '30 minutes', value: '1800', seconds: 1800 },
+  { label: '1 hour', value: '3600', seconds: 3600 },
+  { label: '2 hours', value: '7200', seconds: 7200 },
+  { label: '8 hours', value: '28800', seconds: 28800 },
+  { label: '24 hours', value: '86400', seconds: 86400 },
+  { label: 'No limit', value: '0', seconds: 0 },
+];
+
+function resolveTimeoutSeconds(values: CommandFormValues): number {
+  if (values.timeout_preset && values.timeout_preset !== 'custom') {
+    const preset = TIMEOUT_PRESETS.find((p) => p.value === values.timeout_preset);
+    if (preset) return preset.seconds;
+  }
+  return values.timeout_seconds ?? 1800;
 }
 
 function buildPayload(values: CommandFormValues) {
@@ -133,19 +155,20 @@ function buildPayload(values: CommandFormValues) {
   if (values.cpu_count !== undefined && values.cpu_count !== null)
     resource_limits.cpu_count = values.cpu_count;
 
-  return {
+  const mode = values.execution_mode ?? 'create';
+  const payload: Record<string, unknown> = {
     name: values.name,
     description: values.description,
     category: values.category,
-    docker_image: values.docker_image,
-    command_string: values.command_string,
+    docker_image: mode === 'logs' ? 'n/a' : values.docker_image,
+    command_string: mode === 'logs' ? 'logs' : values.command_string,
     parameter_schema: { parameters },
     allowed_roles: values.allowed_roles,
     resource_limits,
     volumes: values.volumes ?? [],
-    timeout_seconds: values.timeout_seconds ?? 300,
+    timeout_seconds: resolveTimeoutSeconds(values),
     allow_concurrent: values.allow_concurrent ?? false,
-    execution_mode: values.execution_mode ?? 'create',
+    execution_mode: mode,
     target_container: values.target_container,
     artifacts: values.artifacts ?? [],
     artifact_destination: values.artifact_dest_type
@@ -157,6 +180,16 @@ function buildPayload(values: CommandFormValues) {
         }
       : undefined,
   };
+
+  if (mode === 'logs') {
+    payload.log_options = {
+      tail_lines: values.log_tail_lines ?? 100,
+      follow: values.log_follow ?? true,
+      timestamps: values.log_timestamps ?? false,
+    };
+  }
+
+  return payload;
 }
 
 function commandToFormValues(cmd: CommandEntry): CommandFormValues {
@@ -171,6 +204,10 @@ function commandToFormValues(cmd: CommandEntry): CommandFormValues {
     allow_concurrent: cmd.allow_concurrent,
     execution_mode: cmd.execution_mode,
     target_container: cmd.target_container,
+    log_tail_lines: cmd.log_options?.tail_lines ?? 100,
+    log_follow: cmd.log_options?.follow ?? true,
+    log_timestamps: cmd.log_options?.timestamps ?? false,
+    timeout_preset: String(cmd.timeout_seconds),
     cpu_shares: cmd.resource_limits?.cpu_shares,
     memory_mb: cmd.resource_limits?.memory_mb,
     cpu_count: cmd.resource_limits?.cpu_count,
@@ -454,8 +491,12 @@ function CommandForm({
       layout="vertical"
       initialValues={{
         execution_mode: 'create',
-        timeout_seconds: 300,
+        timeout_preset: '1800',
+        timeout_seconds: 1800,
         allow_concurrent: false,
+        log_tail_lines: 100,
+        log_follow: true,
+        log_timestamps: false,
         parameters: [],
         volumes: [],
         artifacts: [],
@@ -487,24 +528,28 @@ function CommandForm({
         <Input placeholder="e.g. DB Dumps, Data Extraction" />
       </Form.Item>
 
-      <Form.Item
-        name="docker_image"
-        label="Docker Image"
-        rules={[{ required: true, message: 'Docker image is required' }]}
-      >
-        <Input placeholder="e.g. postgres:16-alpine" />
-      </Form.Item>
+      {executionMode !== 'logs' && (
+        <Form.Item
+          name="docker_image"
+          label="Docker Image"
+          rules={[{ required: true, message: 'Docker image is required' }]}
+        >
+          <Input placeholder="e.g. postgres:16-alpine" />
+        </Form.Item>
+      )}
 
-      <Form.Item
-        name="command_string"
-        label="Command String"
-        rules={[{ required: true, message: 'Command string is required' }]}
-      >
-        <Input.TextArea
-          rows={2}
-          placeholder="e.g. pg_dump -h $HOST -U $USER $DB"
-        />
-      </Form.Item>
+      {executionMode !== 'logs' && (
+        <Form.Item
+          name="command_string"
+          label="Command String"
+          rules={[{ required: true, message: 'Command string is required' }]}
+        >
+          <Input.TextArea
+            rows={2}
+            placeholder="e.g. pg_dump -h $HOST -U $USER $DB"
+          />
+        </Form.Item>
+      )}
 
       <Form.Item
         name="execution_mode"
@@ -514,22 +559,47 @@ function CommandForm({
         <Select>
           <Select.Option value="create">Create (new container)</Select.Option>
           <Select.Option value="exec">Exec (existing container)</Select.Option>
+          <Select.Option value="logs">Stream container logs</Select.Option>
         </Select>
       </Form.Item>
 
-      {executionMode === 'exec' && (
+      {(executionMode === 'exec' || executionMode === 'logs') && (
         <Form.Item
           name="target_container"
           label="Target Container"
           rules={[
             {
               required: true,
-              message: 'Target container is required for exec mode',
+              message: 'Target container is required',
             },
           ]}
         >
-          <Input placeholder="Container name or ID" />
+          <Input placeholder="e.g. backend" />
         </Form.Item>
+      )}
+
+      {executionMode === 'logs' && (
+        <>
+          <Form.Item name="log_tail_lines" label="Tail lines">
+            <InputNumber min={0} max={10000} style={{ width: 160 }} />
+          </Form.Item>
+          <Space size={24}>
+            <Form.Item
+              name="log_follow"
+              label="Follow"
+              valuePropName="checked"
+            >
+              <Switch />
+            </Form.Item>
+            <Form.Item
+              name="log_timestamps"
+              label="Timestamps"
+              valuePropName="checked"
+            >
+              <Switch />
+            </Form.Item>
+          </Space>
+        </>
       )}
 
       <Form.Item
@@ -549,19 +619,39 @@ function CommandForm({
 
       <Title level={5}>Execution Settings</Title>
 
-      <Space size={16}>
-        <Form.Item name="timeout_seconds" label="Timeout (seconds)">
-          <InputNumber min={1} max={86400} style={{ width: 160 }} />
-        </Form.Item>
+      <Form.Item name="timeout_preset" label="Timeout">
+        <Select
+          options={[
+            ...TIMEOUT_PRESETS.map((p) => ({ label: p.label, value: p.value })),
+            { label: 'Custom (seconds)', value: 'custom' },
+          ]}
+        />
+      </Form.Item>
 
-        <Form.Item
-          name="allow_concurrent"
-          label="Allow Concurrent"
-          valuePropName="checked"
-        >
-          <Switch />
-        </Form.Item>
-      </Space>
+      <Form.Item
+        noStyle
+        shouldUpdate={(prev, cur) => prev.timeout_preset !== cur.timeout_preset}
+      >
+        {({ getFieldValue }) =>
+          getFieldValue('timeout_preset') === 'custom' ? (
+            <Form.Item
+              name="timeout_seconds"
+              label="Custom timeout (seconds)"
+              extra="0 = no limit (stop via Cancel)"
+            >
+              <InputNumber min={0} max={86400} style={{ width: 160 }} />
+            </Form.Item>
+          ) : null
+        }
+      </Form.Item>
+
+      <Form.Item
+        name="allow_concurrent"
+        label="Allow Concurrent"
+        valuePropName="checked"
+      >
+        <Switch />
+      </Form.Item>
 
       <Title level={5}>Resource Limits</Title>
 

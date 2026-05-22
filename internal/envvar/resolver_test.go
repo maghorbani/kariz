@@ -47,6 +47,12 @@ func (m *mockDockerManager) CopyFromContainer(_ context.Context, _ string, _ str
 	return nil, nil
 }
 
+func (m *mockDockerManager) ContainerLogs(_ context.Context, _ string, _ models.LogOptions) (<-chan models.OutputChunk, error) {
+	ch := make(chan models.OutputChunk)
+	close(ch)
+	return ch, nil
+}
+
 func (m *mockDockerManager) InspectContainerEnv(_ context.Context, containerNameOrID string) (map[string]string, error) {
 	if m.inspectErr != nil {
 		return nil, m.inspectErr

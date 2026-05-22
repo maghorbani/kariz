@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Outlet, Route, Routes } from 'react-router-dom';
 
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
+import AppLayout from './components/AppLayout';
 
 import LoginPage from './pages/LoginPage';
 import CommandListPage from './pages/CommandListPage';
@@ -21,10 +23,28 @@ const queryClient = new QueryClient({
     queries: {
       retry: 1,
       refetchOnWindowFocus: false,
-      staleTime: 30_000, // 30 seconds
+      staleTime: 30_000,
     },
   },
 });
+
+function AuthenticatedLayout() {
+  return (
+    <ProtectedRoute>
+      <AppLayout>
+        <Outlet />
+      </AppLayout>
+    </ProtectedRoute>
+  );
+}
+
+function AdminLayout() {
+  return (
+    <AdminRoute>
+      <Outlet />
+    </AdminRoute>
+  );
+}
 
 export default function App() {
   return (
@@ -32,95 +52,32 @@ export default function App() {
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            {/* Public */}
             <Route path="/login" element={<LoginPage />} />
 
-            {/* Authenticated routes */}
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <CommandListPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/commands/:id"
-              element={
-                <ProtectedRoute>
-                  <CommandDetailPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/commands/:id/execute"
-              element={
-                <ProtectedRoute>
-                  <ExecutionFormPage />
-                </ProtectedRoute>
-              }
-            />
+            <Route element={<AuthenticatedLayout />}>
+              <Route path="/" element={<CommandListPage />} />
+              <Route path="/commands/:id" element={<CommandDetailPage />} />
+              <Route
+                path="/commands/:id/execute"
+                element={<ExecutionFormPage />}
+              />
+              <Route path="/executions" element={<ExecutionHistoryPage />} />
+              <Route
+                path="/executions/:id"
+                element={<ExecutionDetailPage />}
+              />
+              <Route path="/notifications" element={<NotificationsPage />} />
+              <Route path="/schedules" element={<ScheduleListPage />} />
 
-            <Route
-              path="/executions"
-              element={
-                <ProtectedRoute>
-                  <ExecutionHistoryPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/executions/:id"
-              element={
-                <ProtectedRoute>
-                  <ExecutionDetailPage />
-                </ProtectedRoute>
-              }
-            />
-
-            <Route
-              path="/notifications"
-              element={
-                <ProtectedRoute>
-                  <NotificationsPage />
-                </ProtectedRoute>
-              }
-            />
-
-            <Route
-              path="/schedules"
-              element={
-                <ProtectedRoute>
-                  <ScheduleListPage />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* Admin routes */}
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute>
-                  <AdminPanelPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/commands"
-              element={
-                <ProtectedRoute>
-                  <CommandManagementPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/users"
-              element={
-                <ProtectedRoute>
-                  <UserManagementPage />
-                </ProtectedRoute>
-              }
-            />
+              <Route element={<AdminLayout />}>
+                <Route path="/admin" element={<AdminPanelPage />} />
+                <Route
+                  path="/admin/commands"
+                  element={<CommandManagementPage />}
+                />
+                <Route path="/admin/users" element={<UserManagementPage />} />
+              </Route>
+            </Route>
           </Routes>
         </AuthProvider>
       </BrowserRouter>

@@ -9,6 +9,8 @@ import (
 	"github.com/kariz/kariz/internal/models"
 )
 
+const maxBufferedEvents = 10_000
+
 // StreamManager manages SSE connections for real-time output delivery.
 type StreamManager interface {
 	// Subscribe returns a channel of SSE events for an execution.
@@ -148,6 +150,9 @@ func (m *inMemoryStreamManager) Publish(executionID string, chunk models.OutputC
 	}
 	es.nextID++
 	es.events = append(es.events, event)
+	if len(es.events) > maxBufferedEvents {
+		es.events = es.events[len(es.events)-maxBufferedEvents:]
+	}
 
 	// Fan out to all active subscribers.
 	for sub := range es.subscribers {

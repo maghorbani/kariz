@@ -11,7 +11,11 @@ type ExecutionMode string
 const (
 	ModeCreate ExecutionMode = "create"
 	ModeExec   ExecutionMode = "exec"
+	ModeLogs   ExecutionMode = "logs"
 )
+
+// MaxTimeoutSeconds is the maximum allowed command timeout (24 hours).
+const MaxTimeoutSeconds = 86400
 
 // ParameterType defines the data type of a command parameter.
 type ParameterType string
@@ -48,12 +52,51 @@ type CommandEntry struct {
 	AllowConcurrent     bool                `json:"allow_concurrent" db:"allow_concurrent"`
 	ExecutionMode       ExecutionMode       `json:"execution_mode" db:"execution_mode"`
 	TargetContainer     string              `json:"target_container,omitempty" db:"target_container"`
+	LogOptions          *LogOptions         `json:"log_options,omitempty" db:"log_options"`
 	Artifacts           []ArtifactDeclare   `json:"artifacts,omitempty" db:"artifacts"`
 	ArtifactDestination *ArtifactDestConfig `json:"artifact_destination,omitempty" db:"artifact_destination"`
 	IsActive            bool                `json:"is_active" db:"is_active"`
 	Version             int                 `json:"version" db:"version"`
 	CreatedAt           time.Time           `json:"created_at" db:"created_at"`
 	UpdatedAt           time.Time           `json:"updated_at" db:"updated_at"`
+}
+
+// LogOptions configures container log streaming for logs execution mode.
+type LogOptions struct {
+	TailLines  int  `json:"tail_lines"`
+	Follow     bool `json:"follow"`
+	Timestamps bool `json:"timestamps"`
+}
+
+// DefaultLogOptions returns sensible defaults for log streaming commands.
+func DefaultLogOptions() *LogOptions {
+	return &LogOptions{
+		TailLines:  100,
+		Follow:     true,
+		Timestamps: false,
+	}
+}
+
+// Scan implements sql.Scanner for JSONB log_options.
+func (lo *LogOptions) Scan(src interface{}) error {
+	if src == nil {
+		return nil
+	}
+	var data []byte
+	switch v := src.(type) {
+	case []byte:
+		data = v
+	case string:
+		data = []byte(v)
+	default:
+		return nil
+	}
+	return json.Unmarshal(data, lo)
+}
+
+// Value implements driver.Valuer for JSONB log_options.
+func (lo LogOptions) Value() (interface{}, error) {
+	return json.Marshal(lo)
 }
 
 // ParameterSchema defines the parameters accepted by a command.
@@ -209,6 +252,7 @@ type CreateCommandInput struct {
 	AllowConcurrent     bool                `json:"allow_concurrent"`
 	ExecutionMode       ExecutionMode       `json:"execution_mode"`
 	TargetContainer     string              `json:"target_container,omitempty"`
+	LogOptions          *LogOptions         `json:"log_options,omitempty"`
 	Artifacts           []ArtifactDeclare   `json:"artifacts,omitempty"`
 	ArtifactDestination *ArtifactDestConfig `json:"artifact_destination,omitempty"`
 }
@@ -228,6 +272,7 @@ type UpdateCommandInput struct {
 	AllowConcurrent     *bool               `json:"allow_concurrent,omitempty"`
 	ExecutionMode       *ExecutionMode      `json:"execution_mode,omitempty"`
 	TargetContainer     *string             `json:"target_container,omitempty"`
+	LogOptions          *LogOptions         `json:"log_options,omitempty"`
 	Artifacts           []ArtifactDeclare   `json:"artifacts,omitempty"`
 	ArtifactDestination *ArtifactDestConfig `json:"artifact_destination,omitempty"`
 }

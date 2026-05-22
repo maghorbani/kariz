@@ -5,6 +5,7 @@
 *.out
 *.prof
 vendor/
+bin
 
 # Frontend
 web/node_modules/

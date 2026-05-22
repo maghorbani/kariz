@@ -40,12 +40,6 @@ func (s *catalogService) CreateCommand(ctx context.Context, input models.CreateC
 			Message: "name is required",
 		}
 	}
-	if strings.TrimSpace(input.CommandString) == "" {
-		return nil, &models.APIError{
-			Code:    "validation_error",
-			Message: "command_string is required",
-		}
-	}
 	if len(input.AllowedRoles) == 0 {
 		return nil, &models.APIError{
 			Code:    "validation_error",
@@ -71,6 +65,18 @@ func (s *catalogService) CreateCommand(ctx context.Context, input models.CreateC
 		execMode = models.ModeCreate
 	}
 
+	logOpts := input.LogOptions
+	if execMode == models.ModeLogs && logOpts == nil {
+		logOpts = models.DefaultLogOptions()
+	}
+
+	if err := validateCommandFields(
+		execMode, input.CommandString, input.DockerImage,
+		input.TargetContainer, logOpts, input.TimeoutSeconds,
+	); err != nil {
+		return nil, err
+	}
+
 	now := time.Now().UTC()
 	entry := &models.CommandEntry{
 		ID:                  uuid.New().String(),
@@ -87,6 +93,7 @@ func (s *catalogService) CreateCommand(ctx context.Context, input models.CreateC
 		AllowConcurrent:     input.AllowConcurrent,
 		ExecutionMode:       execMode,
 		TargetContainer:     input.TargetContainer,
+		LogOptions:          logOpts,
 		Artifacts:           input.Artifacts,
 		ArtifactDestination: input.ArtifactDestination,
 		IsActive:            true,
@@ -149,12 +156,6 @@ func (s *catalogService) UpdateCommand(ctx context.Context, id string, input mod
 		existing.DockerImage = *input.DockerImage
 	}
 	if input.CommandString != nil {
-		if strings.TrimSpace(*input.CommandString) == "" {
-			return nil, &models.APIError{
-				Code:    "validation_error",
-				Message: "command_string cannot be empty",
-			}
-		}
 		existing.CommandString = *input.CommandString
 	}
 	if input.ParameterSchema != nil {
@@ -192,6 +193,20 @@ func (s *catalogService) UpdateCommand(ctx context.Context, id string, input mod
 	}
 	if input.ArtifactDestination != nil {
 		existing.ArtifactDestination = input.ArtifactDestination
+	}
+	if input.LogOptions != nil {
+		existing.LogOptions = input.LogOptions
+	}
+
+	execMode := existing.ExecutionMode
+	if input.ExecutionMode != nil {
+		execMode = *input.ExecutionMode
+	}
+	if err := validateCommandFields(
+		execMode, existing.CommandString, existing.DockerImage,
+		existing.TargetContainer, existing.LogOptions, existing.TimeoutSeconds,
+	); err != nil {
+		return nil, err
 	}
 
 	// Increment version and update timestamp

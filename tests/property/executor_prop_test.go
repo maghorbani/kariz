@@ -347,6 +347,12 @@ func (m *prop9MockDockerManager) CopyFromContainer(ctx context.Context, containe
 	return nil, fmt.Errorf("not implemented")
 }
 
+func (m *prop9MockDockerManager) ContainerLogs(ctx context.Context, containerID string, opts models.LogOptions) (<-chan models.OutputChunk, error) {
+	ch := make(chan models.OutputChunk)
+	close(ch)
+	return ch, nil
+}
+
 // prop9MockParamValidator is a minimal ParameterValidator mock that always passes.
 type prop9MockParamValidator struct{}
 
@@ -607,6 +613,12 @@ func (m *prop19TrackingDockerManager) InspectContainerEnv(ctx context.Context, c
 
 func (m *prop19TrackingDockerManager) CopyFromContainer(ctx context.Context, containerID string, srcPath string) (io.ReadCloser, error) {
 	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *prop19TrackingDockerManager) ContainerLogs(ctx context.Context, containerID string, opts models.LogOptions) (<-chan models.OutputChunk, error) {
+	ch := make(chan models.OutputChunk)
+	close(ch)
+	return ch, nil
 }
 
 func (m *prop19TrackingDockerManager) getState() (createCalled, removeCalled, execCalled bool) {

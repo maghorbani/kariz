@@ -3,6 +3,7 @@ package stream
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kariz/kariz/internal/models"
@@ -48,13 +49,18 @@ func (h *SSEHandler) StreamExecution(c *gin.Context) {
 
 	c.Status(http.StatusOK)
 
+	keepalive := time.NewTicker(30 * time.Second)
+	defer keepalive.Stop()
+
 	for {
 		select {
 		case <-clientGone:
 			return
+		case <-keepalive.C:
+			_, _ = fmt.Fprintf(c.Writer, ": keepalive\n\n")
+			c.Writer.Flush()
 		case event, ok := <-eventCh:
 			if !ok {
-				// Channel closed — execution complete.
 				return
 			}
 			h.writeSSEEvent(c, event)

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Alert, Button, Card, Form, Input, Typography } from 'antd';
+import { Alert, Button, Card, Form, Input, Spin, Typography } from 'antd';
 import { LockOutlined, UserOutlined } from '@ant-design/icons';
 import { useAuth } from '@/context/AuthContext';
 import type { LoginCredentials } from '@/types';
@@ -9,13 +9,19 @@ const { Title } = Typography;
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, user, loading } = useAuth();
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!loading && user) {
+      navigate('/', { replace: true });
+    }
+  }, [loading, user, navigate]);
 
   const onFinish = async (values: LoginCredentials) => {
     setError(null);
-    setLoading(true);
+    setSubmitting(true);
     try {
       await login(values.username, values.password);
       navigate('/', { replace: true });
@@ -31,9 +37,24 @@ export default function LoginPage() {
         setError('Login failed. Please check your credentials.');
       }
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '100vh',
+        }}
+      >
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -94,7 +115,7 @@ export default function LoginPage() {
             <Button
               type="primary"
               htmlType="submit"
-              loading={loading}
+              loading={submitting}
               block
               size="large"
             >
