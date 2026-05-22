@@ -212,7 +212,7 @@ func (dm *dockerManager) ContainerLogs(ctx context.Context, containerID string, 
 
 	ch := make(chan models.OutputChunk, 64)
 	go func() {
-		defer reader.Close()
+		defer func() { _ = reader.Close() }()
 		demuxStream(ctx, reader, ch)
 	}()
 	return ch, nil

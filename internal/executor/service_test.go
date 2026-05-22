@@ -566,8 +566,8 @@ func TestCancelExecution_RunningExecution(t *testing.T) {
 		dockerMgr: dockerMgr,
 	}
 
-	// Track a container for this execution.
-	svc.runningContainers.Store("exec-1", "container-abc")
+	// Track an owned ephemeral container (create mode).
+	svc.ownedContainers.Store("exec-1", "container-abc")
 
 	err := svc.CancelExecution(context.Background(), "exec-1")
 	if err != nil {
@@ -575,12 +575,42 @@ func TestCancelExecution_RunningExecution(t *testing.T) {
 	}
 
 	if !stopCalled {
-		t.Error("expected StopContainer to be called")
+		t.Error("expected StopContainer to be called for owned container")
 	}
 
 	finalRecord := repo.getRecord("exec-1")
 	if finalRecord.Status != models.StatusCancelled {
 		t.Errorf("expected status 'cancelled', got %q", finalRecord.Status)
+	}
+}
+
+func TestCancelExecution_ExecOrLogsModeDoesNotStopContainer(t *testing.T) {
+	repo := newMockRepo()
+	repo.records["exec-1"] = &models.ExecutionRecord{
+		ID:        "exec-1",
+		CommandID: "cmd-1",
+		Status:    models.StatusRunning,
+	}
+
+	stopCalled := false
+	dockerMgr := &mockDockerManager{
+		stopContainerFn: func(ctx context.Context, containerID string, timeout int) error {
+			stopCalled = true
+			return nil
+		},
+	}
+
+	svc := &executorService{repo: repo, dockerMgr: dockerMgr}
+	// Exec/logs mode: only cancel context is registered, not ownedContainers.
+	_, cancel := context.WithCancel(context.Background())
+	svc.runningCancels.Store("exec-1", cancel)
+
+	err := svc.CancelExecution(context.Background(), "exec-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stopCalled {
+		t.Error("expected StopContainer NOT to be called for exec/logs cancel")
 	}
 }
 

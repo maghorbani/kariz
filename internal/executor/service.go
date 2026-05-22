@@ -56,8 +56,9 @@ type executorService struct {
 	artifactCopier ArtifactCopier
 	envResolver    EnvVarResolver
 
-	// runningContainers tracks container IDs by execution ID for cancellation.
-	runningContainers sync.Map // map[string]string (executionID -> containerID)
+	// ownedContainers tracks ephemeral containers (create mode only) that should be
+	// stopped when the execution is cancelled or times out.
+	ownedContainers sync.Map // map[string]string (executionID -> containerID)
 
 	// runningCancels tracks cancel functions by execution ID for exec-mode cancellation.
 	runningCancels sync.Map // map[string]context.CancelFunc
@@ -225,9 +226,9 @@ func (s *executorService) runCreateMode(cmd models.CommandEntry, record *models.
 	record.ContainerID = &containerID
 	s.updateRecord(record)
 
-	// Track container for cancellation.
-	s.runningContainers.Store(record.ID, containerID)
-	defer s.runningContainers.Delete(record.ID)
+	// Track ephemeral container so cancel/timeout can stop it.
+	s.ownedContainers.Store(record.ID, containerID)
+	defer s.ownedContainers.Delete(record.ID)
 
 	// Ensure container cleanup.
 	defer func() {
@@ -294,10 +295,6 @@ func (s *executorService) runExecMode(cmd models.CommandEntry, record *models.Ex
 	record.Status = models.StatusRunning
 	record.ContainerID = &cmd.TargetContainer
 	s.updateRecord(record)
-
-	// Track container for cancellation.
-	s.runningContainers.Store(record.ID, cmd.TargetContainer)
-	defer s.runningContainers.Delete(record.ID)
 
 	// Create exec instance.
 	execID, err := s.dockerMgr.ExecInContainer(execCtx, cmd.TargetContainer, cmdArgs)
@@ -371,9 +368,6 @@ func (s *executorService) runLogsMode(cmd models.CommandEntry, record *models.Ex
 	record.Status = models.StatusRunning
 	record.ContainerID = &cmd.TargetContainer
 	s.updateRecord(record)
-
-	s.runningContainers.Store(record.ID, cmd.TargetContainer)
-	defer s.runningContainers.Delete(record.ID)
 
 	logOpts := models.DefaultLogOptions()
 	if cmd.LogOptions != nil {
@@ -528,7 +522,9 @@ func (s *executorService) signalStreamComplete(executionID string, status models
 	s.streamMgr.Complete(executionID, status)
 }
 
-// CancelExecution stops a running execution by stopping its container and updating the status.
+// CancelExecution stops a running execution. For create-mode runs it also stops the
+// ephemeral container Kariz created. For exec/logs mode it only cancels the stream —
+// the target container is left running.
 func (s *executorService) CancelExecution(ctx context.Context, executionID string) error {
 	record, err := s.repo.GetByID(ctx, executionID)
 	if err != nil {
@@ -548,12 +544,12 @@ func (s *executorService) CancelExecution(ctx context.Context, executionID strin
 		}
 	}
 
-	// Try to stop the container if we have one tracked.
-	if containerID, ok := s.runningContainers.Load(executionID); ok {
+	// Stop only ephemeral containers Kariz created (create mode).
+	if containerID, ok := s.ownedContainers.Load(executionID); ok {
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer stopCancel()
 		if err := s.dockerMgr.StopContainer(stopCtx, containerID.(string), 5); err != nil { //nolint:errcheck // error is checked
-			slog.Error("failed to stop container during cancel", "container_id", containerID, "error", err)
+			slog.Error("failed to stop owned container during cancel", "container_id", containerID, "error", err)
 		}
 	}
 

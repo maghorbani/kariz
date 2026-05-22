@@ -9,16 +9,13 @@
 # ---------------------------------------------------------------------------
 # Stage 1: Frontend build
 # ---------------------------------------------------------------------------
-FROM node:20-alpine AS frontend
-
-# Install pnpm globally.
-RUN corepack enable && corepack prepare pnpm@latest --activate
+FROM node:22-alpine AS frontend
 
 WORKDIR /app/web
 
 # Install dependencies first for better layer caching.
 COPY web/package.json web/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN corepack enable && corepack install && pnpm install --frozen-lockfile
 
 # Copy frontend source and build the production bundle.
 COPY web/ ./
